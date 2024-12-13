@@ -1,0 +1,133 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <openssl/sha.h>  // SHA256 from OpenSSL
+#include <time.h>
+
+#define MAX_TRANSACTION_LENGTH 256
+#define BLOCK_DATA_SIZE 1024
+
+// Block structure representing each block in the blockchain
+typedef struct Block {
+    int index;                // Block number
+    char timestamp[64];       // Timestamp of the block
+    char transaction[MAX_TRANSACTION_LENGTH];  // Transaction data
+    char prevHash[SHA256_DIGEST_LENGTH * 2 + 1]; // Previous block hash
+    char currentHash[SHA256_DIGEST_LENGTH * 2 + 1]; // Current block hash
+    struct Block* next;       // Pointer to next block
+} Block;
+
+// Blockchain structure (Linked list of blocks)
+typedef struct Blockchain {
+    Block* head; // Head of the linked list (first block)
+    Block* tail; // Tail of the linked list (last block)
+    int length;  // Number of blocks in the blockchain
+} Blockchain;
+
+typedef Blockchain* b; // Define b as a pointer to Blockchain
+
+// Function to calculate SHA-256 hash of a given string
+void calculateHash(const char* input, char* output) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256_CTX sha256_ctx;
+    SHA256_Init(&sha256_ctx);
+    SHA256_Update(&sha256_ctx, input, strlen(input));
+    SHA256_Final(hash, &sha256_ctx);
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        sprintf(output + (i * 2), "%02x", hash[i]);
+    }
+    output[SHA256_DIGEST_LENGTH * 2] = '\0';
+}
+
+// Function to create a new block with transaction data
+Block* createBlock(int index, const char* transaction, const char* prevHash) {
+    Block* newBlock = (Block*)malloc(sizeof(Block));
+    newBlock->index = index;
+    snprintf(newBlock->timestamp, sizeof(newBlock->timestamp), "%ld", time(NULL));  // Current timestamp
+    strncpy(newBlock->transaction, transaction, sizeof(newBlock->transaction));
+    strncpy(newBlock->prevHash, prevHash, sizeof(newBlock->prevHash));
+
+    // Data to hash: Index, Timestamp, Transaction, Previous Hash
+    char blockData[BLOCK_DATA_SIZE];
+    snprintf(blockData, sizeof(blockData), "%d%s%s%s", newBlock->index, newBlock->timestamp, newBlock->transaction, newBlock->prevHash);
+    calculateHash(blockData, newBlock->currentHash);
+
+    newBlock->next = NULL;  // Initially points to NULL
+    return newBlock;
+}
+
+// Function to initialize a new blockchain
+b createBlockchain() {
+    b blockchain = (b)malloc(sizeof(Blockchain));  // Use the typedef pointer type b
+    blockchain->head = NULL;
+    blockchain->tail = NULL;
+    blockchain->length = 0;
+    return blockchain;
+}
+
+// Function to add a new block to the blockchain
+void addBlock(b blockchain, const char* transaction) {
+    char prevHash[SHA256_DIGEST_LENGTH * 2 + 1] = "0";
+    if (blockchain->length > 0) {
+        strcpy(prevHash, blockchain->tail->currentHash);  // Get the hash of the last block
+    }
+
+    // Create a new block and add it to the blockchain
+    Block* newBlock = createBlock(blockchain->length + 1, transaction, prevHash);
+
+    if (blockchain->tail == NULL) {
+        blockchain->head = newBlock;  // Set head if it's the first block
+        blockchain->tail = newBlock;  // Set tail
+    } else {
+        blockchain->tail->next = newBlock;  // Link the new block to the chain
+        blockchain->tail = newBlock;        // Update the tail pointer
+    }
+
+    blockchain->length++;  // Increment blockchain length
+}
+
+// Function to print the blockchain
+void printBlockchain(b blockchain) {
+    Block* current = blockchain->head;
+    while (current != NULL) {
+        printf("Block %d\n", current->index);
+        printf("Timestamp: %s\n", current->timestamp);
+        printf("Transaction: %s\n", current->transaction);
+        printf("Previous Hash: %s\n", current->prevHash);
+        printf("Current Hash: %s\n", current->currentHash);
+        printf("-------------------------------\n");
+        current = current->next;
+    }
+}
+
+int main() {
+    // Create a new blockchain
+    b myBlockchain = createBlockchain();  // Use the typedef pointer type b
+    int n;
+    char a[30];
+    printf("enter the number of transactoin details to be entered\n");
+    scanf("%d",&n);
+    for(int i=0;i<n;i++){
+    	 printf("enter block data in below format\n Transaction 1: Alice -> Bob $50\n");
+    	 scanf("%s",a);
+    	 addBlock(myBlockchain, a);
+    	 }
+    // Add blocks with transaction data
+    //addBlock(myBlockchain, "Transaction 1: Alice -> Bob $50");
+    //addBlock(myBlockchain, "Transaction 2: Bob -> Charlie $30");
+    //addBlock(myBlockchain, "Transaction 3: Charlie -> Dave $20");
+
+    // Print the entire blockchain
+    printBlockchain(myBlockchain);
+
+    // Clean up memory
+    Block* current = myBlockchain->head;
+    while (current != NULL) {
+        Block* temp = current;
+        current = current->next;
+        free(temp);
+    }
+    free(myBlockchain);
+
+    return 0;
+}
